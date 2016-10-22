@@ -11,16 +11,26 @@ namespace gsparql {
 		INT,
 		LONG,
 		DOUBLE,
-		FLOAT
+		FLOAT,
+		BOOL
+
 	};
 	
-	struct SubjectObject
+	struct PropTable /* property_table = {key (URI), value (data_type)} */
 	{
 		long tupleCount; /* the number of tuples in the relation */
-		int attrType[2];
-		int attrSize[2];
-		char** content;
+		int valueType;
+		int valueSize;
+
+		long* key;
+		char* value;
 	};
+
+	struct JoinTable {
+		long tupleCount;
+	};
+
+
 }
 
 #endif
