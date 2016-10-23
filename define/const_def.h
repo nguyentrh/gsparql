@@ -1,6 +1,8 @@
 #ifndef COMMON_CONST_H
 #define COMMON_CONST_H
 
+#include "cutil.h"
+
 /* define constant cuda parameters */
 #define WARP_SIZE (32)
 #define BLOCK_SIZE (512)
@@ -21,6 +23,7 @@
 #define TOTAL_THREADS (THREADS_PER_BLOCK * BLOCKS_PER_GRID)
 
 #define SHARED_MEMORY_PER_PROCESSOR (8*1024)
+#define SHARED_SIZE_LIMIT (1024)
 #define TOTAL_PROCESSORS (14)
 
 /* define short functions */
@@ -46,7 +49,5 @@
 #define TOGPU(dev_pointer,hos_pointer, size)  CUDA_SAFE_CALL(cudaMemcpy(dev_pointer,hos_pointer, size, cudaMemcpyHostToDevice))
 #define FROMGPU(hos_pointer, dev_pointer, size)  CUDA_SAFE_CALL(cudaMemcpy(hos_pointer, dev_pointer, size, cudaMemcpyDeviceToHost))
 #define GPUTOGPU(dev_to, dev_from, size)  CUDA_SAFE_CALL(cudaMemcpy(dev_to, dev_from, size, cudaMemcpyDeviceToDevice))
-
-
 
 #endif

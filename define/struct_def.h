@@ -1,8 +1,10 @@
 #ifndef COMMON_STRUCT_H
 #define COMMON_STRUCT_H
 
-namespace gsparql {
+/* define data types */
+typedef unsigned int index_t;
 
+namespace gsparql {
 	enum
 	{
 		/* data type supported in schema */
@@ -22,7 +24,7 @@ namespace gsparql {
 		int valueType;
 		int valueSize;
 
-		long* key;
+		index_t* key;
 		char* value;
 	};
 
