@@ -129,12 +129,6 @@ __global__ void bitonicSortBlocked(
 	}
 }
 
-#define GPU_COPY(grid, block, dest, src, size, value) \
-			copyAndFill<<<grid, block>>>(dest, src, size, value)
-
-#define GPU_BLOCKED_BITONIC(grid, block, destKey, destVal, srcKey, srcVal, destLen, srcLen, dir) \
-			bitonicSortBlocked<<<grid, block>>>(destKey, destVal, srcKey, srcVal, destLen, srcLen, dir)
-
 /* bitonic sort */
 extern "C" void bitonicSort(
 	index_t*	dev_key, 
@@ -150,16 +144,16 @@ extern "C" void bitonicSort(
 	// declair two temp 'key', 'value' arrays for sorting computation in gpu
 	index_t* dev_tempKey;
 	index_t* dev_tempVal;
-	GPUMALLOC(&dev_tempKey, np2Size);
-	GPUMALLOC(&dev_tempVal, np2Size);
+	GPUMALLOC(&dev_tempKey, np2Size * sizeof(index_t));
+	GPUMALLOC(&dev_tempVal, np2Size * sizeof(index_t));
 
 	// copy key, value arrays to two temp arrays
 	index_t defaultVal = dir == 0 ? UINT_MAX : 0;
-	GPU_COPY(blocksPerGrid, BLOCK_SIZE, dev_tempKey, dev_key, numRecords, defaultVal);
-	GPU_COPY(blocksPerGrid, BLOCK_SIZE, dev_tempVal, dev_value, numRecords, defaultVal);
+	copyAndFill GPUPARAM(blocksPerGrid, BLOCK_SIZE) (dev_tempKey, dev_key, numRecords, defaultVal);
+	copyAndFill GPUPARAM(blocksPerGrid, BLOCK_SIZE) (dev_tempVal, dev_value, numRecords, defaultVal);
 
 	if (np2Size <= SHARED_SIZE_LIMIT) { // For small-size arrays, we execute an kernel which utilizes shared memory
-		GPU_BLOCKED_BITONIC(blocksPerGrid, BLOCK_SIZE, dev_key, dev_value, dev_tempKey, dev_tempVal, numRecords, np2Size, (dir == 1));
+		bitonicSortBlocked GPUPARAM(blocksPerGrid, BLOCK_SIZE) (dev_key, dev_value, dev_tempKey, dev_tempVal, numRecords, np2Size, (dir == 1));
 	}
 	else { // For large arrays
 		// adsadada
