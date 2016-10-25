@@ -1,7 +1,7 @@
 #ifndef PREFIX_SCAN_CU
 #define PREFIX_SCAN_CU
 
-#include "..\define\common.h"
+#include "..\define\cuda_primitive.h"
 #include <math.h>
 
 #define NUM_BANKS 32
@@ -421,7 +421,7 @@ void prescanArray(int *outArray, int *inArray, int numElements)
     prescanArrayRecursive(outArray, inArray, numElements, 0);
 }
 
-int prefexSum( int* d_inArr, int* d_outArr, int numRecords )
+extern "C" int prefexSum(int* d_inArr, int* d_outArr, int numRecords)
 {	
 	preallocBlockSums(numRecords);
 	prescanArray( d_outArr, d_inArr, numRecords );

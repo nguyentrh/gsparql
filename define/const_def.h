@@ -23,7 +23,6 @@
 #define TOTAL_THREADS (THREADS_PER_BLOCK * BLOCKS_PER_GRID)
 
 #define SHARED_MEMORY_PER_PROCESSOR (8*1024)
-#define SHARED_SIZE_LIMIT (1024)
 #define TOTAL_PROCESSORS (14)
 
 /* define short functions */
@@ -49,5 +48,7 @@
 #define TOGPU(dev_pointer,hos_pointer, size)  CUDA_SAFE_CALL(cudaMemcpy(dev_pointer,hos_pointer, size, cudaMemcpyHostToDevice))
 #define FROMGPU(hos_pointer, dev_pointer, size)  CUDA_SAFE_CALL(cudaMemcpy(hos_pointer, dev_pointer, size, cudaMemcpyDeviceToHost))
 #define GPUTOGPU(dev_to, dev_from, size)  CUDA_SAFE_CALL(cudaMemcpy(dev_to, dev_from, size, cudaMemcpyDeviceToDevice))
+
+#define GPUPARAM(grid, block) <<<grid, block>>>
 
 #endif
