@@ -1,8 +1,10 @@
 #ifndef PREFIX_SCAN_CU
 #define PREFIX_SCAN_CU
 
-#include "..\define\cuda_primitive.h"
+#include "..\define\common.h"
 #include <math.h>
+
+using namespace sparql;
 
 #define NUM_BANKS 32
 #define LOG_NUM_BANKS 5
@@ -346,13 +348,14 @@ void prescanArrayRecursive(int *outArray,
     unsigned int sharedMemSize = 
         sizeof(int) * (numEltsPerBlock + extraSpace);
 
+/*
 #ifdef DEBUG
     if (numBlocks > 1)
     {
         assert(g_numEltsAllocated >= numElements);
     }
 #endif
-
+*/
     // setup execution parameters
     // if NP2, we process the last block separately
     dim3  grid(max(1, numBlocks - np2LastBlock), 1, 1); 
@@ -421,7 +424,7 @@ void prescanArray(int *outArray, int *inArray, int numElements)
     prescanArrayRecursive(outArray, inArray, numElements, 0);
 }
 
-extern "C" int prefexSum(int* d_inArr, int* d_outArr, int numRecords)
+extern "C" int prefixSum(int* d_inArr, int* d_outArr, int numRecords)
 {	
 	preallocBlockSums(numRecords);
 	prescanArray( d_outArr, d_inArr, numRecords );
