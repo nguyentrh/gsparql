@@ -1,10 +1,9 @@
 #ifndef PREFIX_SCAN_CU
 #define PREFIX_SCAN_CU
 
-#include "..\define\common.h"
+#include "..\inc\define.h"
+#include "..\inc\primitives.h"
 #include <math.h>
-
-using namespace sparql;
 
 #define NUM_BANKS 32
 #define LOG_NUM_BANKS 5
@@ -14,6 +13,8 @@ using namespace sparql;
 #else
 #define CONFLICT_FREE_OFFSET(index) ((index) >> LOG_NUM_BANKS)
 #endif
+
+using namespace gsparql;
 
 template <bool isNP2>
 __device__ void loadSharedChunkFromMem(int *s_data,
@@ -424,7 +425,7 @@ void prescanArray(int *outArray, int *inArray, int numElements)
     prescanArrayRecursive(outArray, inArray, numElements, 0);
 }
 
-extern "C" int prefixSum(int* d_inArr, int* d_outArr, int numRecords)
+int exclusiveScan(int* d_inArr, int* d_outArr, int numRecords)
 {	
 	preallocBlockSums(numRecords);
 	prescanArray( d_outArr, d_inArr, numRecords );

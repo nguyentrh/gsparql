@@ -1,113 +1,116 @@
-#include "define\common.h"
 #include <time.h>       /* time */
 #include <iostream>
+#include "inc\define.h"
+#include "inc\merge.cuh"
+#include "inc\Timer.h"
+#include "test\mergeTest.h"
 
 using namespace std;
-using namespace sparql;
+using namespace gsparql;
 
-// Print device properties
-void printDevProp(cudaDeviceProp devProp)
-{
-	printf("Major revision number:         %d\n", devProp.major);
-	printf("Minor revision number:         %d\n", devProp.minor);
-	printf("Name:                          %s\n", devProp.name);
-	printf("Total global memory:           %u\n", devProp.totalGlobalMem);
-	printf("Total shared memory per block: %u\n", devProp.sharedMemPerBlock);
-	printf("Total registers per block:     %d\n", devProp.regsPerBlock);
-	printf("Warp size:                     %d\n", devProp.warpSize);
-	printf("Maximum memory pitch:          %u\n", devProp.memPitch);
-	printf("Maximum threads per block:     %d\n", devProp.maxThreadsPerBlock);
-	for (int i = 0; i < 3; ++i)
-		printf("Maximum dimension %d of block:  %d\n", i, devProp.maxThreadsDim[i]);
-	for (int i = 0; i < 3; ++i)
-		printf("Maximum dimension %d of grid:   %d\n", i, devProp.maxGridSize[i]);
-	printf("Clock rate:                    %d\n", devProp.clockRate);
-	printf("Total constant memory:         %u\n", devProp.totalConstMem);
-	printf("Texture alignment:             %u\n", devProp.textureAlignment);
-	printf("Concurrent copy and execution: %s\n", (devProp.deviceOverlap ? "Yes" : "No"));
-	printf("Number of multiprocessors:     %d\n", devProp.multiProcessorCount);
-	printf("Kernel execution timeout:      %s\n", (devProp.kernelExecTimeoutEnabled ? "Yes" : "No"));
-	return;
-}
-
-bool setDevice() {
-	// Number of CUDA devices
-	int devCount = 0;
-	cudaGetDeviceCount(&devCount);
-
-	if (DEBUG) {
-		printf("CUDA Device Query...\n");
-		printf("There are %d CUDA devices.\n", devCount);
-	}
-
-	if (devCount == 0) return false;
-
-	// Iterate through devices
-	int devIdx;
-	int maxSMCount = 0;
-	for (int i = 0; i < devCount; ++i)
-	{
-		// Get device properties
-		cudaDeviceProp devProp;
-		cudaGetDeviceProperties(&devProp, i);
-		
-		if (DEBUG) {
-			printf("\nCUDA Device #%d\n", i);
-			printDevProp(devProp);
-		}
-
-		if (maxSMCount < devProp.multiProcessorCount) {
-			maxSMCount = devProp.multiProcessorCount;
-			devIdx = i;
-		}
-	}
-
-	CUDA_SAFE_CALL(cudaSetDevice(devIdx));
-	return true;
-}
-
-TripleStore* readStore(char* folder, char* dbname, int propNum, int typeNum) {
-	char filename[256];
-	TripleStore* store = new TripleStore();
-	store->predicateNum = propNum;
-	store->datatypeNum = typeNum;
-
-	store->propTables = new PropTable*[propNum];
-	
-	for (int i = 0; i < propNum; i++) {
-		store->propTables[i] = new PropTable[typeNum];
-
-		for (int j = 0; j < typeNum; j++) {
-			// load subject column
-			sscanf(filename, "%s/%s_S_%d_%d.COL", folder, dbname, propNum, typeNum);
-			Column* subject = new Column();
-			if (read(subject, filename)) { store->propTables[i][j].subject = subject; }
-			else { delete subject; }
-
-			// load object column
-			sscanf(filename, "%s/%s_O_%d_%d.COL", folder, dbname, propNum, typeNum);
-			Column* object = new Column();
-			if (read(object, filename)) { store->propTables[i][j].object = object; }
-			else { delete object; }
-		}
-	}
-
-	return store;
-}
+#define TEST_SIZE1 400
+#define TEST_SIZE2 500
 
 int main() {
-	if (setDevice() == false) return -1;
+	int key1[TEST_SIZE1];
+	int val1[TEST_SIZE1];
+	int key2[TEST_SIZE2];
+	int val2[TEST_SIZE2];
 
-	char* folder = "";
-	char* dbname = "";
-	int propNum = 1; 
-	int typeNum = 1;
+	for (int i = 0; i < TEST_SIZE1; i++) {
+		key1[i] = i * 2 + 2;
+		val1[i] = key1[i] * 2;
+	}
+
+	for (int i = 0; i < TEST_SIZE2; i++) {
+		key2[i] = i * 4 + 1;
+		val2[i] = key2[i] * 2;
+	}
+
+	/*
+	cout << "Array 1:\n";
+	for (int i = 0; i < TEST_SIZE; i++) {
+		cout << key1[i] << "|" << val1[i] << "  ";
+	}
+	cout << endl;
+
+	cout << "Array 2:\n";
+	for (int i = 0; i < TEST_SIZE; i++) {
+		cout << key2[i] << "|" << val2[i] << "  ";
+	}
+	cout << endl;
+	*/
+
+	int* d_key1;
+	GPUMALLOC(&d_key1, TEST_SIZE1 * sizeof(int));
+	TOGPU(d_key1, key1, TEST_SIZE1 * sizeof(int));
+
+	int* d_val1;
+	GPUMALLOC(&d_val1, TEST_SIZE1 * sizeof(int));
+	TOGPU(d_val1, val1, TEST_SIZE1 * sizeof(int));
+
+	int* d_key2;
+	GPUMALLOC(&d_key2, TEST_SIZE2 * sizeof(int));
+	TOGPU(d_key2, key2, TEST_SIZE2 * sizeof(int));
+
+	int* d_val2;
+	GPUMALLOC(&d_val2, TEST_SIZE2 * sizeof(int));
+	TOGPU(d_val2, val2, TEST_SIZE2 * sizeof(int));
+
+	int outSize = TEST_SIZE1 + TEST_SIZE2;
+	int* outKey1 = new int[outSize];
+	int* outVal1 = new int[outSize];
+
+	int* d_outKey;
+	GPUMALLOC(&d_outKey, outSize * sizeof(int));
+	int* d_outVal;
+	GPUMALLOC(&d_outVal, outSize * sizeof(int));
+
+	cout << "start\n";
 	
-	// load triples from files to main memory
-	TripleStore* store = readStore(folder, dbname, propNum, typeNum);
+	Timer timer;
 
+	timer.start();
+	merge::mergeSorted<int, int>(d_key1, d_val1, TEST_SIZE1, d_key2, d_val2, TEST_SIZE2, d_outKey, d_outVal);
+	timer.stop();
+
+	cout << "time: " << timer.getElapsedTimeInMilliSec() << " ms\n";
 	
+	FROMGPU(outKey1, d_outKey, outSize * sizeof(int));
+	FROMGPU(outVal1, d_outVal, outSize * sizeof(int));
 
-	delete store;
+	int* outKey2 = new int[outSize];
+	int* outVal2 = new int[outSize];
+
+	timer.start();
+	mergeSortedCPU<int, int>(key1, val1, TEST_SIZE1, key2, val2, TEST_SIZE2, outKey2, outVal2);
+	timer.stop();
+
+	cout << "time: " << timer.getElapsedTimeInMilliSec() << " ms\n";
+
+	if (compareArray<int, int>(outKey1, outVal1, outKey2, outVal2, outSize) == true) {
+		cout << "Verify OK\n";
+	}
+	else {
+		cout << "Verify failed\n";
+	}
+	
+	//for (int i = 0; i < OUT_SIZE; i++) {
+	//	cout << outKey1[i] << "  ";
+	//}
+	//cout << endl;
+
+	GPUFREE(d_key1);
+	GPUFREE(d_val1);
+	GPUFREE(d_key2);
+	GPUFREE(d_val2);
+	GPUFREE(d_outKey);
+	GPUFREE(d_outVal);
+	
+	delete[] outKey1;
+	delete[] outKey2;
+	delete[] outVal1;
+	delete[] outVal2;
+
 	return 0;
 }
