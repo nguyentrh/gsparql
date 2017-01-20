@@ -8,8 +8,8 @@
 using namespace std;
 using namespace gsparql;
 
-#define TEST_SIZE1 400
-#define TEST_SIZE2 500
+#define TEST_SIZE1 900
+#define TEST_SIZE2 45000
 
 int main() {
 	int key1[TEST_SIZE1];

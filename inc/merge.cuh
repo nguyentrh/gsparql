@@ -52,9 +52,9 @@ namespace gsparql {
 			__shared__ Key s_keyB[BLOCK_SIZE];
 			__shared__ Value s_valueB[BLOCK_SIZE];
 
-			__shared__ volatile int s_startA, s_stopA, s_lenB, s_lenA;
+			__shared__ volatile int s_startA, s_stopA, s_lenA, s_startB, s_lenB;
 
-			const int startB = BID * (BLOCK_SIZE - 1);
+			int pos = BID * (BLOCK_SIZE - 1) + TID;
 
 			// copy array 1 to shared memory
 			if (TID < lenA) {
@@ -63,15 +63,17 @@ namespace gsparql {
 			}
 
 			// copy segments of array 2 to shared memory, each thread processes a segment
-			if (startB + TID < lenB) {
-				s_keyB[TID] = d_keyB[startB + TID];
-				s_valueB[TID] = d_valueB[startB + TID];
+			if (pos < lenB) {
+				s_keyB[TID] = d_keyB[pos];
+				s_valueB[TID] = d_valueB[pos];
 			}
 			__syncthreads();
 
 			if (TID == 0) {
 				s_startA = BID == 0 ? 0 : util::lowerBound<Key, Value>(s_keyA, s_valueA, lenA, s_keyB[0], s_valueB[0]);
-				s_lenB = min(lenB - startB, BLOCK_SIZE);
+				
+				s_startB = BID * (BLOCK_SIZE - 1);
+				s_lenB = min(lenB - s_startB, BLOCK_SIZE);
 				s_stopA = BID == BLOCKS_PER_GRID - 1 ? lenA : util::lowerBound<Key, Value>(s_keyA, s_valueA, lenA, s_keyB[s_lenB - 1], s_valueB[s_lenB - 1]);
 				s_lenA = s_stopA - s_startA;
 			}
@@ -80,7 +82,7 @@ namespace gsparql {
 			merge<Key, Value>(
 				s_keyA + s_startA, s_valueA + s_startA, s_lenA,
 				s_keyB, s_valueB, s_lenB,
-				d_keyC + (s_startA + startB), d_valueC + (s_startA + startB));
+				d_keyC + (s_startA + s_startB), d_valueC + (s_startA + s_startB));
 		}
 
 		/// merge two arbitrary arrays
@@ -90,63 +92,76 @@ namespace gsparql {
 			Key* d_keyB, Value* d_valueB, int lenB,
 			Key* d_keyC, Value* d_valueC) {
 
-			const int startA = BID * (BLOCK_SIZE - 1);
+			const int pos = BID * (BLOCK_SIZE - 1) + TID;
 
 			// copy BLOCK_SIZE-sized chunk of arrayA to shared memory
 			__shared__ Key s_keyA[BLOCK_SIZE];
 			__shared__ Value s_valueA[BLOCK_SIZE];
 
-			__shared__ volatile int s_startB, s_stopB, s_lenA, s_lenB;
+			__shared__ volatile int s_startB, s_stopB, s_lenB, s_startA, s_lenA;
 
-			if (startA + TID < lenA) {
-				s_keyA[TID] = d_keyA[startA + TID];
-				s_valueA[TID] = d_valueA[startA + TID];
+			if (pos < lenA) {
+				s_keyA[TID] = d_keyA[pos];
+				s_valueA[TID] = d_valueA[pos];
 			}
 			__syncthreads();
 
 			// binary search the begin and end indexes of the corresponding chunk of arrayB, BAD (thread divergence)
 			if (TID == 0) {
 				s_startB = BID == 0 ? 0 : util::upperBound<Key, Value>(d_keyB, d_valueB, lenB, s_keyA[0], s_valueA[0]);
-				s_lenA = min(lenA - startA, BLOCK_SIZE);
+				
+				s_startA = BID * (BLOCK_SIZE - 1);
+				s_lenA = min(lenA - s_startA, BLOCK_SIZE);
 				s_stopB = BID == BLOCKS_PER_GRID - 1 ? lenB : util::upperBound<Key, Value>(d_keyB, d_valueB, lenB, s_keyA[s_lenA - 1], s_valueA[s_lenA - 1]);
 				s_lenB = s_stopB - s_startB;
 			}
 			__syncthreads();
 
-
-			// split chunkB into BLOCK_SIZE-sized sub-chunks
-			int round = (s_lenB - 1) / BLOCK_SIZE + 1;
-
-			__shared__ Key s_keyB[BLOCK_SIZE];
-			__shared__ Value s_valueB[BLOCK_SIZE];
-
-			__shared__ volatile int s_subStartA, s_subStopA, s_subLenA, s_subLenB;
-
-			for (int i = 0; i < round; i++) {
-				// copy sub-chunk of arrayB to shared memory
-				int subStartB = s_startB + i * BLOCK_SIZE;
-
-				if (subStartB + TID < s_stopB) {
-					s_keyB[TID] = d_keyB[subStartB + TID];
-					s_valueB[TID] = d_valueB[subStartB + TID];
+			if (s_lenB == 0) { // empty chunkB
+				if (TID < s_lenA){
+					d_keyC[s_startB + pos] = s_keyA[TID];
+					d_valueC[s_startB + pos] = s_valueA[TID];
 				}
-				__syncthreads();
+			}
+			else {
+				// split chunkB into BLOCK_SIZE-sized sub-chunks
+				int round = (s_lenB - 1) / BLOCK_SIZE + 1;
 
-				if (TID == 0) {
-					s_subStartA = i == 0 ? 0 : util::lowerBound<Key, Value>(s_keyA, s_valueA, s_lenA, s_keyB[0], s_valueB[0]);
-					s_subLenB = min(s_stopB - subStartB, BLOCK_SIZE);
-					s_subStopA = i == round - 1 ? s_lenA : util::lowerBound<Key, Value>(s_keyA, s_valueA, s_lenA, s_keyB[s_subLenB - 1], s_valueB[s_subLenB - 1]);
-					s_subLenA = s_subStopA - s_subStartA;
+				__shared__ Key s_keyB[BLOCK_SIZE];
+				__shared__ Value s_valueB[BLOCK_SIZE];
+				__shared__ volatile int s_subStartA, s_subStopA, s_subLenA, s_subLenB;
+
+				for (int i = 0; i < round; i++) {
+					// copy sub-chunk of arrayB to shared memory
+					int subStartB = s_startB + i * (BLOCK_SIZE-1);
+
+					if (subStartB + TID < s_stopB) {
+						s_keyB[TID] = d_keyB[subStartB + TID];
+						s_valueB[TID] = d_valueB[subStartB + TID];
+					}
+					__syncthreads();
+
+					if (TID == 0) {
+						s_subStartA = i == 0 ? 0 : util::lowerBound<Key, Value>(s_keyA, s_valueA, s_lenA, s_keyB[0], s_valueB[0]);
+						s_subLenB = min(s_stopB - subStartB, BLOCK_SIZE);
+						s_subStopA = i == round - 1 ? s_lenA : util::lowerBound<Key, Value>(s_keyA, s_valueA, s_lenA, s_keyB[s_subLenB - 1], s_valueB[s_subLenB - 1]);
+						s_subLenA = s_subStopA - s_subStartA;
+					}
+					__syncthreads();
+
+					merge<Key, Value>(
+						s_keyA + s_subStartA, s_valueA + s_subStartA, s_subLenA,
+						s_keyB, s_valueB, s_subLenB,
+						d_keyC + (s_startA + s_subStartA + subStartB), d_valueC + (s_startA + s_subStartA + subStartB));
+					__syncthreads();
 				}
-				__syncthreads();
-
-				merge<Key, Value>(
-					s_keyA + s_subStartA, s_valueA + s_subStartA, s_subLenA,
-					s_keyB, s_valueB, s_subLenB,
-					d_keyC + (startA + s_subStartA + subStartB), d_valueC + (startA + s_subStartA + subStartB));
-				__syncthreads();
 			}
 
+		}
+
+
+		static inline int getBlocksPerGrid(int size) {
+			return (size - 1) / (BLOCK_SIZE - 1) + 1;
 		}
 
 		// merge two non-overlapping sorted arrays
@@ -157,13 +172,13 @@ namespace gsparql {
 			// for the case of sizeA or sizeB is smaller than BLOCK_SIZE
 			if (sizeA <= BLOCK_SIZE || sizeB <= BLOCK_SIZE) {
 				if (sizeA <= BLOCK_SIZE) {
-					int blocksPerGrid = (sizeB - 1) / BLOCK_SIZE + 1;
+					int blocksPerGrid = getBlocksPerGrid(sizeB);
 					mergeSharedSmall<Key, Value> <<<blocksPerGrid, BLOCK_SIZE >>> (d_keyA, d_valueA, sizeA,
 						d_keyB, d_valueB, sizeB, d_keyC, d_valueC);
 					CUT_CHECK_ERROR("mergeSharedSmall (arrA)");
 				}
 				else {
-					int blocksPerGrid = (sizeA - 1) / BLOCK_SIZE + 1;
+					int blocksPerGrid = getBlocksPerGrid(sizeA);
 					mergeSharedSmall<Key, Value> <<<blocksPerGrid, BLOCK_SIZE >>>(d_keyB, d_valueB, sizeB,
 						d_keyA, d_valueA, sizeA, d_keyC, d_valueC);
 					CUT_CHECK_ERROR("mergeSharedSmall (arrB)");
@@ -172,13 +187,13 @@ namespace gsparql {
 			// for arbitrary size of array1 and array2
 			else {
 				if (sizeB < sizeA) {
-					int blocksPerGrid = (sizeA - 1) / BLOCK_SIZE + 1;
+					int blocksPerGrid = getBlocksPerGrid(sizeA);
 					mergeSharedNaive<Key, Value> <<<blocksPerGrid, BLOCK_SIZE >>> (d_keyA, d_valueA, sizeA,
 						d_keyB, d_valueB, sizeB, d_keyC, d_valueC);
 					CUT_CHECK_ERROR("mergeSharedNaive (arrA)");
 				}
 				else {
-					int blocksPerGrid = (sizeB - 1) / BLOCK_SIZE + 1;
+					int blocksPerGrid = getBlocksPerGrid(sizeB);
 					mergeSharedNaive<Key, Value> <<<blocksPerGrid, BLOCK_SIZE >>>(d_keyB, d_valueB, sizeB,
 						d_keyA, d_valueA, sizeA, d_keyC, d_valueC);
 					CUT_CHECK_ERROR("mergeSharedNaive (arrB)");

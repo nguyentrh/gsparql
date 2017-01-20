@@ -46,6 +46,11 @@ namespace gsparql {
 		/// find the lowerbound of a key in an array
 		template <typename Key>
 		static inline __device__ __host__ int lowerBound(Key* d_arr, int len, Key key) {
+
+			if (len == 0) {
+				return 0;
+			}
+
 			int lo = 0;
 			int hi = len - 1;
 			int mid;
@@ -68,6 +73,10 @@ namespace gsparql {
 		/// find the lowerbound of a key-val pair in an array
 		template <typename Key, typename Value>
 		static inline __device__ __host__ int lowerBound(Key* d_keys, Value* d_vals, int len, Key key, Value val) {
+			if (len == 0) {
+				return 0;
+			}
+
 			int lo = 0;
 			int hi = len - 1;
 			int mid;
@@ -90,6 +99,10 @@ namespace gsparql {
 		/// find the upperbound of a key in an array
 		template <typename Key>
 		static inline __device__ __host__ int upperBound(Key* d_arr, int len, Key key) {
+			if (len == 0) {
+				return 0;
+			}
+
 			int lo = 0;
 			int hi = len - 1;
 			int mid;
@@ -112,6 +125,10 @@ namespace gsparql {
 		/// find the upperbound of a key-val pair in an array
 		template <typename Key, typename Value>
 		static inline __device__ __host__ int upperBound(Key* d_keys, Value* d_vals, int len, Key key, Value val) {
+			if (len == 0) {
+				return 0;
+			}
+
 			int lo = 0;
 			int hi = len - 1;
 			int mid;
@@ -134,6 +151,10 @@ namespace gsparql {
 		/// binary search on an array, return -1 if not found
 		template <typename Key>
 		static inline __device__ __host__ int binarySearch(Key* d_arr, int len, Key key) {
+			if (len == 0) {
+				return -1;
+			}
+
 			int lo = 0;
 			int hi = len - 1;
 			int mid;
@@ -154,6 +175,10 @@ namespace gsparql {
 
 		template <typename Key, typename Value>
 		static inline __device__ __host__ int binarySearch(Key* d_keys, Value* d_vals, int len, Key key, Value val) {
+			if (len == 0) {
+				return -1;
+			}
+
 			int lo = 0;
 			int hi = len - 1;
 			int mid;
