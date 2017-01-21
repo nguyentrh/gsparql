@@ -1,7 +1,7 @@
 #pragma once
 
-#include "define.h"
-#include "device_func.h"
+#include "../inc/define.h"
+#include "../inc/device_func.h"
 #include <stdio.h>
 
 namespace gsparql {
@@ -166,8 +166,10 @@ namespace gsparql {
 
 		// merge two non-overlapping sorted arrays
 		template <typename Key, typename Value>
-		int mergeSorted(Key* d_keyA, Value* d_valueA, int sizeA,
-			Key* d_keyB, Value* d_valueB, int sizeB, Key* d_keyC, Value* d_valueC) {
+		int mergeSorted(
+			Key* d_keyA, Value* d_valueA, int sizeA,
+			Key* d_keyB, Value* d_valueB, int sizeB, 
+			Key* d_keyC, Value* d_valueC) {
 
 			// for the case of sizeA or sizeB is smaller than BLOCK_SIZE
 			if (sizeA <= BLOCK_SIZE || sizeB <= BLOCK_SIZE) {

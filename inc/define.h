@@ -21,7 +21,7 @@ int __mul24(int, int);
 /* define constant cuda parameters */
 #define WARP_SIZE (32)
 #define BLOCK_SIZE (256)
-#define SHARED_SIZE_LIMIT (257)
+#define SHARED_SIZE_LIMIT (512)
 
 #define THREADS_PER_BLOCK (blockDim.x)
 #define WARPS_PER_BLOCK ((THREADS_PER_BLOCK-1)/WARP_SIZE + 1)
@@ -48,12 +48,8 @@ int __mul24(int, int);
         exit(-1);                                   \
 				    }} while(0)
 
-#ifndef max
-#define max(a,b) (((a) > (b)) ? (a) : (b))
-#endif
-#ifndef min
-#define min(a,b) (((a) < (b)) ? (a) : (b))
-#endif
+#define MAX(a,b) (((a) > (b)) ? (a) : (b))
+#define MIN(a,b) (((a) < (b)) ? (a) : (b))
 
 #define GPUMALLOC(pointer, size) CUDA_SAFE_CALL(cudaMalloc( pointer, size))
 #define CPUMALLOC(pointer, size) CUDA_SAFE_CALL(cudaMallocHost (pointer, size))
