@@ -36,7 +36,6 @@ namespace gsparql {
 		/* Monolithic bitonic sort kernel for very short arrays fitting into shared memory */
 		template <typename Key, typename Value>
 		__global__ void bitonicSortBlocked(
-			Key *d_outKey, Value *d_outVal,
 			Key *d_key, Value *d_val,
 			int len, int dir ) {
 
@@ -47,8 +46,6 @@ namespace gsparql {
 			//Offset to the beginning of subbatch and load data
 			d_key += BID * SHARED_SIZE_LIMIT + TID;
 			d_val += BID * SHARED_SIZE_LIMIT + TID;
-			d_outKey += BID * SHARED_SIZE_LIMIT + TID;
-			d_outVal += BID * SHARED_SIZE_LIMIT + TID;
 			s_key[TID] = d_key[0];
 			s_val[TID] = d_val[0];
 			s_key[TID + (SHARED_SIZE_LIMIT / 2)] = d_key[(SHARED_SIZE_LIMIT / 2)];
@@ -81,17 +78,15 @@ namespace gsparql {
 			}
 
 			__syncthreads();
-			d_outKey[0] = s_key[TID];
-			d_outVal[0] = s_val[TID];
-			d_outKey[(SHARED_SIZE_LIMIT / 2)] = s_key[TID + (SHARED_SIZE_LIMIT / 2)];
-			d_outVal[(SHARED_SIZE_LIMIT / 2)] = s_val[TID + (SHARED_SIZE_LIMIT / 2)];
+			d_key[0] = s_key[TID];
+			d_val[0] = s_val[TID];
+			d_key[(SHARED_SIZE_LIMIT / 2)] = s_key[TID + (SHARED_SIZE_LIMIT / 2)];
+			d_val[(SHARED_SIZE_LIMIT / 2)] = s_val[TID + (SHARED_SIZE_LIMIT / 2)];
 		}
 
 		/// build bitonic array in shared memory
 		template <typename Key, typename Value>
-		__global__ void bitonicSortShared(
-			Key *d_outKey, Value *d_outVal,
-			Key *d_key, Value *d_val){
+		__global__ void bitonicSortShared(Key *d_key, Value *d_val){
 
 			//Shared memory storage for current subarray
 			__shared__ Key s_key[SHARED_SIZE_LIMIT];
@@ -100,8 +95,6 @@ namespace gsparql {
 			//Offset to the beginning of subarray and load data
 			d_key += BID * SHARED_SIZE_LIMIT + TID;
 			d_val += BID * SHARED_SIZE_LIMIT + TID;
-			d_outKey += BID * SHARED_SIZE_LIMIT + TID;
-			d_outVal += BID * SHARED_SIZE_LIMIT + TID;
 			s_key[TID] = d_key[0];
 			s_val[TID] = d_val[0];
 			s_key[TID + (SHARED_SIZE_LIMIT / 2)] = d_key[(SHARED_SIZE_LIMIT / 2)];
@@ -134,19 +127,17 @@ namespace gsparql {
 			}
 
 			__syncthreads();
-			d_outKey[0] = s_key[TID];
-			d_outVal[0] = s_val[TID];
-			d_outKey[(SHARED_SIZE_LIMIT / 2)] = s_key[TID + (SHARED_SIZE_LIMIT / 2)];
-			d_outVal[(SHARED_SIZE_LIMIT / 2)] = s_val[TID + (SHARED_SIZE_LIMIT / 2)];
+			d_key[0] = s_key[TID];
+			d_val[0] = s_val[TID];
+			d_key[(SHARED_SIZE_LIMIT / 2)] = s_key[TID + (SHARED_SIZE_LIMIT / 2)];
+			d_val[(SHARED_SIZE_LIMIT / 2)] = s_val[TID + (SHARED_SIZE_LIMIT / 2)];
 		}
 
 		// Bitonic merge iteration for stride >= SHARED_SIZE_LIMIT
 		template <typename Key, typename Value>
 		__global__ void bitonicMergeGlobal(
-			Key *d_outKey, Value *d_outVal,
-			Key *d_key, Value *d_val,
-			int len, int size,
-			int stride, int dir	){
+			Key *d_key, Value *d_val, int len, 
+			int size, int stride, int dir){
 
 			int global_comparatorI = GTID;
 			int        comparatorI = global_comparatorI & (len / 2 - 1);
@@ -162,19 +153,18 @@ namespace gsparql {
 
 			comparator<Key, Value>( keyA, valA, keyB, valB, ddd);
 
-			d_outKey[pos] = keyA;
-			d_outVal[pos] = valA;
-			d_outKey[pos + stride] = keyB;
-			d_outVal[pos + stride] = valB;
+			d_key[pos] = keyA;
+			d_val[pos] = valA;
+			d_key[pos + stride] = keyB;
+			d_val[pos + stride] = valB;
 		}
 
 		//Combined bitonic merge steps for
 		//size > SHARED_SIZE_LIMIT and stride = [1 .. SHARED_SIZE_LIMIT / 2]
 		template <typename Key, typename Value>
 		__global__ void bitonicMergeShared(
-			Key *d_outKey, Value *d_outVal,
-			Key *d_key, Value *d_val,
-			int len, int size, int dir) {
+			Key *d_key, Value *d_val, int len, 
+			int size, int dir) {
 
 			//Shared memory storage for current subarray
 			__shared__ int s_key[SHARED_SIZE_LIMIT];
@@ -182,8 +172,6 @@ namespace gsparql {
 
 			d_key += BID * SHARED_SIZE_LIMIT + TID;
 			d_val += BID * SHARED_SIZE_LIMIT + TID;
-			d_outKey += BID * SHARED_SIZE_LIMIT + TID;
-			d_outVal += BID * SHARED_SIZE_LIMIT + TID;
 			s_key[TID] = d_key[0];
 			s_val[TID] = d_val[0];
 			s_key[TID + (SHARED_SIZE_LIMIT / 2)] = d_key[(SHARED_SIZE_LIMIT / 2)];
@@ -205,35 +193,78 @@ namespace gsparql {
 			}
 
 			__syncthreads();
-			d_outKey[0] = s_key[TID];
-			d_outVal[0] = s_val[TID];
-			d_outKey[(SHARED_SIZE_LIMIT / 2)] = s_key[TID + (SHARED_SIZE_LIMIT / 2)];
-			d_outVal[(SHARED_SIZE_LIMIT / 2)] = s_val[TID + (SHARED_SIZE_LIMIT / 2)];
+			d_key[0] = s_key[TID];
+			d_val[0] = s_val[TID];
+			d_key[(SHARED_SIZE_LIMIT / 2)] = s_key[TID + (SHARED_SIZE_LIMIT / 2)];
+			d_val[(SHARED_SIZE_LIMIT / 2)] = s_val[TID + (SHARED_SIZE_LIMIT / 2)];
 		}
 
 
-		template <typename Key>
-		__global__ void fill(Key* d_key, int size, Key val) {
+		template <typename Key, typename Value>
+		__global__ void fill(Key* d_key, Value* d_value, int size, Key key, Value val) {
 			int pos = GTID;
 			if (pos < size) {
-				d_key[pos] = val;
+				d_key[pos] = key;
+				d_value[pos] = val;
 			}
 		}
 
-		template <typename Key, typename Value, Key maxKey>
-		void bitonicSort(Key* d_key, Value* d_value, int size) {
+		template <typename Key, typename Value, Key maxKey, Value maxVal>
+		void bitonicSort(Key* d_key, Value* d_value, int len) {
 			// extend the size of the sorted array to 2^n
 			
-			int np2Size = getNP2(size);
-			int blocksPerGrid = np2Size / BLOCK_SIZE;
-
+			int np2Size = getNP2(len);
+			
 			Key* d_tempKey;
 			Value* d_tempVal;
 			GPUMALLOC(&d_tempKey, np2Size * sizeof(Key));
 			GPUMALLOC(&d_tempVal, np2Size * sizeof(Value));
 
+			GPUTOGPU(d_tempKey, d_key, len * sizeof(Key));
+			GPUTOGPU(d_tempVal, d_value, len * sizeof(Value));
 
+			if (len < np2Size) {
+				int diff = np2Size - len;
+				int blocksPerGrid = (diff - 1) / BLOCK_SIZE + 1;
+				fill<Key, Value> <<< blocksPerGrid, BLOCK_SIZE >>>(d_tempKey + len, d_tempVal + len, diff, maxKey, maxVal);
+				CUT_CHECK_ERROR("fill (tempArr)");
+			}
 
+			int dir = 1;
+			int blocksPerGrid = np2Size / SHARED_SIZE_LIMIT;
+
+			if (np2Size <= SHARED_SIZE_LIMIT) { // For small-size arrays, we execute an kernel which utilizes shared memory
+				bitonicSortBlocked<Key, Value> <<< blocksPerGrid, BLOCK_SIZE >>>(
+					d_tempKey, d_tempVal, np2Size, dir);
+				CUT_CHECK_ERROR("bitonicSortBlocked (tempArr)");
+			}
+			else { // For large arrays
+				bitonicSortShared<Key, Value> <<< blocksPerGrid, BLOCK_SIZE >>>(d_tempKey, d_tempVal);
+				CUT_CHECK_ERROR("bitonicSortBlocked (tempArr)");
+
+				for (unsigned size = 2 * SHARED_SIZE_LIMIT; size <= np2Size; size <<= 1) {
+					for (unsigned stride = size / 2; stride > 0; stride >>= 1) {
+						if (stride >= SHARED_SIZE_LIMIT) {
+							bitonicMergeGlobal<Key, Value> <<< blocksPerGrid, BLOCK_SIZE >>>(
+								d_tempKey, d_tempVal, np2Size, size, stride, dir);
+							CUT_CHECK_ERROR("bitonicMergeGlobal (tempArr)");
+						}
+						else
+						{
+							bitonicMergeShared <Key, Value> <<< blocksPerGrid, BLOCK_SIZE >>>(
+								d_tempKey, d_tempVal, np2Size, size, dir);
+							CUT_CHECK_ERROR("bitonicMergeShared (tempArr)");
+							break;
+						}
+					}
+				}
+			}
+
+			GPUTOGPU(d_key, d_tempKey, len * sizeof(Key));
+			GPUTOGPU(d_value, d_tempVal, len * sizeof(Value));
+
+			GPUFREE(d_tempKey);
+			GPUFREE(d_tempVal);
 		}
 	}
 }

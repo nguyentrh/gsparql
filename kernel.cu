@@ -8,6 +8,7 @@
 #include "test\cpu_test.h"
 #include "thrust\merge.h"
 #include "thrust\device_ptr.h"
+#include "thrust\sort.h"
 
 using namespace std;
 using namespace gsparql;
@@ -117,6 +118,28 @@ void testMerge() {
 	delete[] outVal1;
 	delete[] outVal2;
 
+}
+
+void testSort() {
+	int key1[TEST_SIZE1];
+	int val1[TEST_SIZE1];
+
+	srand(time(NULL));
+	for (int i = 0; i < TEST_SIZE1; i++) {
+		key1[i] = rand();
+		val1[i] = rand();
+	}
+
+	int* d_key1;
+	GPUMALLOC(&d_key1, TEST_SIZE1 * sizeof(int));
+	TOGPU(d_key1, key1, TEST_SIZE1 * sizeof(int));
+
+	int* d_val1;
+	GPUMALLOC(&d_val1, TEST_SIZE1 * sizeof(int));
+	TOGPU(d_val1, val1, TEST_SIZE1 * sizeof(int));
+
+	GPUFREE(d_key1);
+	GPUFREE(d_val1);
 }
 
 int main() {
